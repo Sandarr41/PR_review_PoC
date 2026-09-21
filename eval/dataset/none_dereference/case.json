@@ -1,0 +1,11 @@
+{
+  "name": "none_dereference",
+  "description": "profile stays None when name is falsy, so profile.get(...) raises AttributeError — a logic bug static tools miss; requires LLM reasoning (bug_agent).",
+  "diff_file": "diff.patch",
+  "repo_dir": "repo",
+  "seeded_issues": [
+    {"file": "utils.py", "line": 5, "category": "bug"}
+  ],
+  "stub_agent": "bug_agent",
+  "stub_llm_response": "[{\"file\": \"utils.py\", \"line\": 5, \"severity\": \"high\", \"message\": \"profile can be None when name is falsy, so profile.get(...) raises AttributeError\"}]"
+}

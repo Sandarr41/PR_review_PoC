@@ -1,0 +1,48 @@
+# Конфигурация PR Review Agent (docs/specs/serving-config.md).
+# Скопируйте в config.yaml и настройте под окружение (demo/dev).
+
+github:
+  # Токен передаётся через переменную окружения GITHUB_TOKEN, не хранится здесь.
+  api_base_url: "https://api.github.com"
+  request_timeout_seconds: 10
+  max_retries: 3
+  retry_backoff_seconds: [1, 2, 4]
+
+llm:
+  # Google Gemini API key передаётся через переменную окружения GOOGLE_API_KEY.
+  # По умолчанию — gemini-3.6-flash (доступна на бесплатном уровне); при
+  # необходимости можно указать более мощную (и платную) модель, например
+  # gemini-3.1-pro-preview — см. product-proposal.md, Операционные
+  # ограничения → Бюджет.
+  model: "gemini-3.6-flash"
+  temperature: 0.2
+  max_tokens: 4096
+  request_timeout_seconds: 30
+  max_retries: 1
+
+diff:
+  max_diff_lines: 2000
+  chunk_size_lines: 500
+
+tools:
+  enabled: ["pylint", "flake8", "bandit"]
+  timeout_seconds: 15
+
+guardrail:
+  # Дополнительные regex можно добавить сюда; базовый набор — в guardrail.py
+  secret_patterns_extra: []
+  injection_patterns_extra: []
+
+orchestrator:
+  run_timeout_seconds: 300
+  agent_timeout_seconds: 60
+
+report:
+  top_findings_limit: 5
+
+job_store:
+  retention_days: 30
+
+logging:
+  level: "INFO"
+  format: "json"
