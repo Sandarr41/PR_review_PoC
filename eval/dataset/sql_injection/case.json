@@ -1,0 +1,10 @@
+{
+  "name": "sql_injection",
+  "description": "SQL injection via string concatenation in get_user() — catchable by bandit alone.",
+  "diff_file": "diff.patch",
+  "repo_dir": "repo",
+  "seeded_issues": [
+    {"file": "user_service.py", "line": 7, "category": "security"}
+  ],
+  "stub_llm_response": "[]"
+}
