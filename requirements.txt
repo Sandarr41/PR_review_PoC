@@ -1,7 +1,8 @@
 # Core
-google-genai>=1.0
+openai>=1.0
 requests>=2.31
 PyYAML>=6.0
+python-dotenv>=1.0
 
 # Static analysis tools (Tool Integration Layer)
 pylint>=3.2

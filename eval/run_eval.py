@@ -11,8 +11,10 @@ Modes (--llm):
                      `stub_llm_response`, for reproducible CI-free runs.
                      Used for every metric except reasoning quality.
   off              — no LLM at all (tools-only fallback path).
-  real             — actual Google Gemini API call (requires GOOGLE_API_KEY).
-                     Required for the reasoning-quality (LLM-as-judge) metric.
+  real             — actual LLM API call via LLM_BASE_URL/LLM_AUTH_TOKEN
+                     (Polza.ai or any OpenAI-Chat-Completions-shaped
+                     endpoint). Required for the reasoning-quality
+                     (LLM-as-judge) metric.
 
 NOTE on precision@5: the product metric is defined against human-labeled
 "useful/not useful" judgments. This harness approximates it by treating a
@@ -105,13 +107,14 @@ def _make_llm_client(llm_mode: str, config: Config, case: dict | None = None):
         return None
     if llm_mode == "real":
         if not config.has_llm_credentials:
-            raise SystemExit("GOOGLE_API_KEY not set — cannot run --llm real")
+            raise SystemExit("LLM_BASE_URL/LLM_AUTH_TOKEN not set — cannot run --llm real")
         return LLMClient(
-            model=config.get("llm", "model", default="gemini-3.6-flash"),
+            model=config.resolved_llm_model(default="openai/gpt-4o"),
             temperature=config.get("llm", "temperature", default=0.2),
             max_tokens=config.get("llm", "max_tokens", default=4096),
             requests_per_minute=config.get("llm", "requests_per_minute", default=5),
-            api_key=config.google_api_key,
+            api_key=config.llm_auth_token,
+            base_url=config.llm_base_url,
         )
     return StubLLMClient(case["stub_llm_response"], only_for_agent=case.get("stub_agent"))
 
@@ -257,7 +260,7 @@ def print_technical_metrics(cases: list[dict], config: Config) -> None:
     print(
         "    ПРИМЕЧАНИЕ: это latency локального пайплайна (parse -> guardrail -> "
         "tools -> stub-агенты -> aggregate -> report), БЕЗ сетевого времени "
-        "реального LLM API — реальная latency с Gemini выше и подвержена "
+        "реального LLM API — реальная latency с провайдером выше и подвержена "
         "rate-limit-паузам (см. eval/README.md)."
     )
 

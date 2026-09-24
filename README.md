@@ -74,6 +74,7 @@ PoC не будет:
 
 ## Документация
 
+* [docs/quickstart.md](docs/quickstart.md) — куда вставить URL/токен/модель, как выбрать PR и как запустить
 * [docs/product-proposal.md](docs/product-proposal.md) — цель, метрики, ограничения, use-case/edge-case
 * [docs/governance.md](docs/governance.md) — риски, политика логов/данных, guardrails
 * [docs/system-design.md](docs/system-design.md) — архитектура: модули, workflow, state/memory, retrieval, failure modes
@@ -87,7 +88,7 @@ PoC не будет:
 ```bash
 python -m venv .venv && source .venv/Scripts/activate  # Windows Git Bash; используйте .venv/bin/activate на macOS/Linux
 pip install -r requirements.txt
-cp .env.example .env   # заполните GITHUB_TOKEN / GOOGLE_API_KEY (оба опциональны для демо)
+cp .env.example .env   # заполните GITHUB_TOKEN / LLM_* (оба опциональны для демо)
 ```
 
 ### Демо на локальном diff (без GitHub/LLM)
@@ -101,8 +102,9 @@ PYTHONPATH=src python -m pr_review_agent.cli analyze \
 
 `demo/` — локальный «checkout» с post-PR версией файлов из `sample.diff`,
 поэтому Tool Integration Layer (`pylint`/`flake8`/`bandit`) работает по-настоящему.
-Без `--no-llm` и с заданным `GOOGLE_API_KEY` агенты (`bug`/`security`/
-`quality`/`test_coverage`) дополнительно рассуждают над diff через Google Gemini API.
+Без `--no-llm` и с заданными `LLM_BASE_URL`/`LLM_AUTH_TOKEN`/`LLM_MODEL` агенты
+(`bug`/`security`/`quality`/`test_coverage`) дополнительно рассуждают над diff
+через настроенный LLM-эндпоинт (по умолчанию — Polza.ai).
 
 ### Анализ реального GitHub PR
 

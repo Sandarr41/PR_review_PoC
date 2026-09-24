@@ -65,13 +65,14 @@ def analyze(request: AnalyzeRequest) -> JobResponse:
 
     llm_client = (
         LLMClient(
-            model=config.get("llm", "model", default="gemini-3.6-flash"),
+            model=config.resolved_llm_model(default="openai/gpt-4o"),
             temperature=config.get("llm", "temperature", default=0.2),
             max_tokens=config.get("llm", "max_tokens", default=4096),
             request_timeout_seconds=config.get("llm", "request_timeout_seconds", default=30),
             max_retries=config.get("llm", "max_retries", default=1),
             requests_per_minute=config.get("llm", "requests_per_minute", default=5),
-            api_key=config.google_api_key,
+            api_key=config.llm_auth_token,
+            base_url=config.llm_base_url,
         )
         if config.has_llm_credentials
         else None
@@ -103,7 +104,7 @@ def get_job(job_id: str) -> dict:
         "duration_ms": job.duration_ms,
         "llm_input_tokens": job.llm_input_tokens,
         "llm_output_tokens": job.llm_output_tokens,
-        "llm_cost_usd": job.llm_cost_usd,
+        "llm_cost_rub": job.llm_cost_rub,
         "error": job.error,
         "report_markdown": job.report_markdown,
     }

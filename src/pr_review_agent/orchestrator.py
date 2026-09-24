@@ -24,7 +24,6 @@ from .job_store import InMemoryJobStore
 from .llm_client import LLMClient, LLMUnavailableError
 from .models import Finding, Job, JobStatus
 from .observability import get_logger, log_event, timed_step
-from .pricing import UnknownModelPricingError
 from .report import generate_report
 from .retriever import retrieve
 from .tools_runner import run_tools
@@ -192,12 +191,7 @@ def run_pipeline(
         # used as `llm_client` in unit tests may not implement them.
         job.llm_input_tokens = getattr(llm_client, "total_input_tokens", 0)
         job.llm_output_tokens = getattr(llm_client, "total_output_tokens", 0)
-        estimate_cost = getattr(llm_client, "estimated_cost_usd", None)
-        if estimate_cost is not None:
-            try:
-                job.llm_cost_usd = estimate_cost()
-            except UnknownModelPricingError as exc:
-                log_event(logger, "cost_estimate_unavailable", job_id=job.job_id, detail=str(exc))
+        job.llm_cost_rub = getattr(llm_client, "total_cost_rub", 0.0)
 
     job.status = final_status
     job.agents_used = sorted(agents_used)
@@ -217,7 +211,7 @@ def run_pipeline(
         duration_ms=duration_ms,
         llm_input_tokens=job.llm_input_tokens,
         llm_output_tokens=job.llm_output_tokens,
-        llm_cost_usd=round(job.llm_cost_usd, 6),
+        llm_cost_rub=round(job.llm_cost_rub, 6),
     )
 
     return PipelineResult(job=job, findings=ranked_findings, report_markdown=report_markdown)

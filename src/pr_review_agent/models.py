@@ -94,10 +94,12 @@ class Job:
     error: Optional[str] = None
     report_markdown: Optional[str] = None
     # Real measured LLM usage for this run (docs/economics.md) — 0 when the
-    # run used no LLM (--no-llm / fallback), never a guess.
+    # run used no LLM (--no-llm / fallback), never a guess. Cost is the
+    # provider's own reported figure (Polza.ai bills in RUB), not a static
+    # per-model estimate.
     llm_input_tokens: int = 0
     llm_output_tokens: int = 0
-    llm_cost_usd: float = 0.0
+    llm_cost_rub: float = 0.0
 
     def touch(self, status: Optional[JobStatus] = None) -> None:
         if status is not None:

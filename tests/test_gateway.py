@@ -31,7 +31,14 @@ class _FakeGitHubClient:
 @pytest.fixture
 def client(monkeypatch, tmp_path):
     monkeypatch.setattr(gateway, "GitHubClient", _FakeGitHubClient)
-    monkeypatch.setattr(gateway.config, "google_api_key", None)  # force tools-only fallback, no live LLM
+    # Force tools-only fallback, no live LLM. gateway.config is a module-level
+    # singleton built at import time (before any fixture can run) via
+    # Config.load(), which now auto-loads .env (config.py) — so whatever
+    # real credentials happen to be in this repo's .env are already baked in
+    # by the time this fixture runs. Both fields must be cleared, or
+    # has_llm_credentials stays True and the test hits a real network call.
+    monkeypatch.setattr(gateway.config, "llm_base_url", None)
+    monkeypatch.setattr(gateway.config, "llm_auth_token", None)
     return TestClient(gateway.app)
 
 

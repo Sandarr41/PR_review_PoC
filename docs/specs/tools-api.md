@@ -21,11 +21,11 @@
 - **Side effects:** отсутствуют — read-only анализ, инструменты не модифицируют код.
 - **Защита:** subprocess выполняется в изолированном окружении (контейнер/sandbox) без доступа к секретам процесса-оркестратора.
 
-## LLM API (Google Gemini API)
+## LLM API (OpenAI Chat Completions — Polza.ai по умолчанию)
 
 - **Контракт:** reasoning и объяснение находок инструментов, генерация review report; код передаётся LLM только как данные — система не выполняет инструкции, встречающиеся в коде (governance.md, раздел 4).
-- **Rate limiting:** client-side sliding-window `RateLimiter` (`src/pr_review_agent/rate_limiter.py`), 5 запросов/мин по умолчанию — подобрано под реально наблюдаемый лимит бесплатного тарифа Gemini (`eval/README.md`), настраивается через `llm.requests_per_minute`.
-- **Timeout:** 30 секунд на запрос агента, 1 retry (`HttpRetryOptions`, SDK `google-genai`).
-- **Ошибки:** timeout/5xx (`ServerError`) → fallback на tools-only отчёт (см. system-design.md, раздел 7 «Failure modes»); 4xx (`ClientError`: invalid request, rate limit, превышение контекста) → урезание контекста (chunking) и один повторный запрос; блокировка контента (`finish_reason` = SAFETY/PROHIBITED_CONTENT/BLOCKLIST/RECITATION/SPII) обрабатывается как недоступность LLM.
+- **Rate limiting:** client-side sliding-window `RateLimiter` (`src/pr_review_agent/rate_limiter.py`), 5 запросов/мин по умолчанию, настраивается через `llm.requests_per_minute`.
+- **Timeout:** 30 секунд на запрос агента, 1 retry (SDK `openai`) — на практике для некоторых моделей через Polza этого может не хватать при параллельных вызовах (реальная находка, `docs/economics.md`), стоит поднимать по месту.
+- **Ошибки:** timeout/connection error/5xx (`APIConnectionError`/`APIStatusError`) → fallback на tools-only отчёт (см. system-design.md, раздел 7 «Failure modes»); блокировка контента (`finish_reason=content_filter` или заполненное поле `message.refusal`) обрабатывается как недоступность LLM.
 - **Side effects:** отсутствуют — LLM не имеет доступа к репозиторию или внешним API, только к переданному контексту.
-- **Защита:** перед отправкой — маскирование секретов и фильтрация подозрительных инструкций (Guardrail Pre-Filter); system prompt (`system_instruction`) неизменяем и не собирается из кода PR; `thinking_config.thinking_budget=0`, так как агентам нужен только структурированный JSON-вывод, а не рассуждение вслух.
+- **Защита:** перед отправкой — маскирование секретов и фильтрация подозрительных инструкций (Guardrail Pre-Filter); system prompt передаётся отдельным `role: "system"` сообщением, неизменяем и не собирается из кода PR.

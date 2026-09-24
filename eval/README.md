@@ -10,7 +10,7 @@ summary of the current numbers against every target.
 ```bash
 python eval/run_eval.py --llm stub                # all 3 tiers, deterministic (default)
 python eval/run_eval.py --llm off                 # tools-only fallback path
-python eval/run_eval.py --llm real                # + real Gemini calls (needs GOOGLE_API_KEY);
+python eval/run_eval.py --llm real                # + real LLM calls (needs LLM_BASE_URL/LLM_AUTH_TOKEN);
                                                    # required for the reasoning-quality metric
 python eval/run_eval.py --tier product            # just the product tier (recall/precision@5)
 python eval/run_eval.py --tier agent              # just tool-selection / stability / reasoning
@@ -56,9 +56,10 @@ Three tiny synthetic PRs under `eval/dataset/`, each with a seeded, known issue:
   `tools_runner.expected_tools_for_language`? Target ≥ 0.95.
 - **Стабильность пайплайна** — fraction of `n_runs` repeated `--llm stub`
   runs per case that don't end in `JobStatus.FAILED`. Target ≥ 0.95.
-- **Качество reasoning** — LLM-as-judge: one extra real Gemini call scoring
-  a finding 1-5 against a clarity/correctness/relevance rubric. Only runs
-  under `--llm real`; in `stub`/`off` mode the harness says so instead of
+- **Качество reasoning** — LLM-as-judge: one extra real LLM call (via the
+  configured `LLM_BASE_URL`/`LLM_AUTH_TOKEN`/`LLM_MODEL`) scoring a finding
+  1-5 against a clarity/correctness/relevance rubric. Only runs under
+  `--llm real`; in `stub`/`off` mode the harness says so instead of
   inventing a score.
 
 ### Technical (`eval/metrics.py`)

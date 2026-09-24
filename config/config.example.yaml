@@ -9,19 +9,18 @@ github:
   retry_backoff_seconds: [1, 2, 4]
 
 llm:
-  # Google Gemini API key передаётся через переменную окружения GOOGLE_API_KEY.
-  # По умолчанию — gemini-3.6-flash (доступна на бесплатном уровне); при
-  # необходимости можно указать более мощную (и платную) модель, например
-  # gemini-3.1-pro-preview — см. product-proposal.md, Операционные
-  # ограничения → Бюджет.
-  model: "gemini-3.6-flash"
+  # URL/токен передаются через LLM_BASE_URL/LLM_AUTH_TOKEN (см. .env.example).
+  # По умолчанию — Polza.ai (openai/gpt-4o); имя модели включает провайдера,
+  # см. каталог polza.ai/models — например anthropic/claude-sonnet-5 для
+  # более мощной (и платной) модели. См. product-proposal.md, Операционные
+  # ограничения → Бюджет, и docs/economics.md.
+  model: "openai/gpt-4o"
   temperature: 0.2
   max_tokens: 4096
   request_timeout_seconds: 30
   max_retries: 1
   # Client-side throttle ahead of every LLM call (docs/diagrams/c4-component.md,
-  # "Circuit Breaker / Rate Limiter"). 5 matches the free-tier limit we hit
-  # in practice (eval/README.md) — raise it if your plan/quota allows more.
+  # "Circuit Breaker / Rate Limiter") — raise it if your plan/quota allows more.
   requests_per_minute: 5
 
 diff:
