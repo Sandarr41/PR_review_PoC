@@ -1,12 +1,14 @@
 # Core
-google-genai>=1.0
+openai>=1.0
 requests>=2.31
 PyYAML>=6.0
+python-dotenv>=1.0
 
 # Static analysis tools (Tool Integration Layer)
 pylint>=3.2
 flake8>=7.0
 bandit>=1.7
+semgrep>=1.45
 
 # Optional async API gateway (docs/specs/serving-config.md) — not required for the CLI/eval demo
 fastapi>=0.110

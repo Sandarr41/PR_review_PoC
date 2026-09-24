@@ -1,0 +1,10 @@
+{
+  "name": "javascript_eval",
+  "description": "eval(userInput) in a JavaScript file — must be caught by semgrep (the only tool that supports JS) and never handed to pylint/flake8/bandit (Python-only). Also exercises the tool-selection-accuracy agent metric with a genuine negative case.",
+  "diff_file": "diff.patch",
+  "repo_dir": "repo",
+  "seeded_issues": [
+    {"file": "app.js", "line": 2, "category": "security"}
+  ],
+  "stub_llm_response": "[]"
+}

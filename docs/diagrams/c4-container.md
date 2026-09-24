@@ -12,13 +12,13 @@ C4Container
 
   Container_Boundary(system, "PR Review Agent") {
     Container(gateway, "API / Webhook Gateway", "REST", "Принимает запрос на анализ PR, возвращает ack, создаёт job")
-    ContainerDb(jobstore, "Job Store", "SQLite/Redis", "Состояние job: queued/running/completed/failed")
+    ContainerDb(jobstore, "Job Store", "In-memory (PoC); SQLite/Redis planned", "Состояние job: queued/running/completed/failed")
     Container(orchestrator, "Orchestrator", "Python service", "Координирует пайплайн, параллелизм, retries")
     Container(ingestion, "PR Ingestion Module", "Python", "Получает diff и метаданные PR")
     Container(parser, "Diff Parser", "Python", "Разбивает diff по файлам, определяет язык")
     Container(guardrail, "Guardrail Pre/Post-Filter", "Python", "Маскирует секреты, фильтрует инструкции, проверяет отчёт")
     Container(retriever, "Context Retriever", "Python", "Резолвит символы, подтягивает связанные файлы/тесты")
-    Container(tools, "Tool Integration Layer", "Sandboxed subprocess", "pylint, flake8, semgrep, bandit")
+    Container(tools, "Tool Integration Layer", "Sandboxed subprocess", "pylint, flake8, bandit, semgrep (bundled offline rules)")
     Container(agents, "Analysis Agents", "LLM-backed", "Bug / Security / Quality / Test-coverage")
     Container(aggregator, "Aggregation Module", "Python", "Дедуп, ранжирование находок")
     Container(reportgen, "Report Generator", "Python", "Формирует markdown-отчёт")

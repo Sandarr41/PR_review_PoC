@@ -1,23 +1,41 @@
 # Eval harness
 
-Operationalizes the metrics from [`docs/product-proposal.md`](../docs/product-proposal.md)
-and the eval policy from [`docs/governance.md`](../docs/governance.md) § 6.
+Operationalizes **all three metric tiers** from
+[`docs/product-proposal.md`](../docs/product-proposal.md)'s "Метрики"
+section — product, agent, and technical, not just recall/precision@5 — and
+the eval policy from [`docs/governance.md`](../docs/governance.md) § 6.
+See [`docs/demo-report.md`](../docs/demo-report.md) for a consolidated
+summary of the current numbers against every target.
 
 ```bash
-python eval/run_eval.py --llm stub   # deterministic canned agent output (default)
-python eval/run_eval.py --llm off    # tools-only fallback path
-python eval/run_eval.py --llm real   # actual Google Gemini API call (needs GOOGLE_API_KEY)
+python eval/run_eval.py --llm stub                # all 3 tiers, deterministic (default)
+python eval/run_eval.py --llm off                 # tools-only fallback path
+python eval/run_eval.py --llm real                # + real LLM calls (needs LLM_BASE_URL/LLM_AUTH_TOKEN);
+                                                   # required for the reasoning-quality metric
+python eval/run_eval.py --tier product            # just the product tier (recall/precision@5)
+python eval/run_eval.py --tier agent              # just tool-selection / stability / reasoning
+python eval/run_eval.py --tier technical          # just latency / success-rate
 ```
+
+Metric logic beyond the product tier lives in `eval/metrics.py` (kept
+separate so `run_eval.py`'s `main()` stays a thin driver over the three
+`print_*_metrics` functions).
 
 ## Dataset
 
-Two tiny synthetic PRs under `eval/dataset/`, each with a seeded, known issue:
+Three tiny synthetic PRs under `eval/dataset/`, each with a seeded, known issue:
 
 - `sql_injection` — a SQL-injection bug catchable by static analysis alone (bandit).
 - `none_dereference` — a `None`-attribute logic bug that static tools miss;
   finding it requires LLM reasoning (`bug_agent`).
+- `javascript_eval` — `eval(userInput)` in a `.js` file. Exists specifically
+  to give the tool-selection-accuracy metric a genuine negative case:
+  semgrep (the only tool with JS support) must catch it, and pylint/flake8/
+  bandit (Python-only) must be skipped, not silently run-and-find-nothing.
 
 ## Metrics
+
+### Product (per-case, in `run_eval.py`)
 
 - **Recall** — fraction of seeded issues matched by at least one reported finding
   (file + category equal, line within ±2). Target ≥ 0.6.
@@ -26,6 +44,38 @@ Two tiny synthetic PRs under `eval/dataset/`, each with a seeded, known issue:
   defined in product-proposal.md is scored against human "useful/not useful"
   labels; here a seeded ground-truth match stands in for that judgment so the
   harness can run without a human in the loop. Treat it as a lower bound.
+- **Снижение времени ревью** — genuinely not measured here. product-proposal.md
+  defines it as a before/after comparison of human review time, which needs
+  actual reviewers; the harness reports this explicitly rather than
+  fabricating a substitute number.
+
+### Agent (`eval/metrics.py`)
+
+- **Корректность выбора инструментов** — deterministic, no LLM: for each
+  file, does the actually-invoked (non-skipped) tool set exactly match
+  `tools_runner.expected_tools_for_language`? Target ≥ 0.95.
+- **Стабильность пайплайна** — fraction of `n_runs` repeated `--llm stub`
+  runs per case that don't end in `JobStatus.FAILED`. Target ≥ 0.95.
+- **Качество reasoning** — LLM-as-judge: one extra real LLM call (via the
+  configured `LLM_BASE_URL`/`LLM_AUTH_TOKEN`/`LLM_MODEL`) scoring a finding
+  1-5 against a clarity/correctness/relevance rubric. Only runs under
+  `--llm real`; in `stub`/`off` mode the harness says so instead of
+  inventing a score.
+
+### Technical (`eval/metrics.py`)
+
+- **p95 latency ack** — wall-clock cost of `JobManager.submit()` itself (job
+  creation + handoff to the executor), with no GitHub/LLM I/O — the actual
+  "return immediately" contract, not diluted by network variance. Target < 2s.
+- **p95 latency report** — `--llm stub` pipeline duration (parse → guardrail
+  → tools → agents → aggregate → report), i.e. the pipeline's own overhead
+  in isolation from real-LLM network/rate-limit variance. Target < 90s
+  (PR ≤ 500 lines).
+- **Успешность обработки PR** — same computation as pipeline stability,
+  reported here because product-proposal.md lists it under "Технические
+  метрики" too.
+- **Максимальный размер PR** — not re-measured here; covered by
+  `tests/test_orchestrator.py::test_pipeline_chunks_large_diff`.
 
 ## History: precision@5 was failing, and why
 

@@ -88,12 +88,14 @@ def main(argv: list[str] | None = None) -> int:
     llm_client = None
     if not args.no_llm and config.has_llm_credentials:
         llm_client = LLMClient(
-            model=config.get("llm", "model", default="gemini-3.6-flash"),
+            model=config.resolved_llm_model(default="openai/gpt-4o"),
             temperature=config.get("llm", "temperature", default=0.2),
             max_tokens=config.get("llm", "max_tokens", default=4096),
             request_timeout_seconds=config.get("llm", "request_timeout_seconds", default=30),
             max_retries=config.get("llm", "max_retries", default=1),
-            api_key=config.google_api_key,
+            requests_per_minute=config.get("llm", "requests_per_minute", default=5),
+            api_key=config.llm_auth_token,
+            base_url=config.llm_base_url,
         )
 
     result = run_pipeline(
@@ -109,7 +111,12 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     print(result.report_markdown)
-    print(f"\n[job {result.job.job_id}] status={result.job.status.value} duration_ms={result.job.duration_ms}", file=sys.stderr)
+    print(
+        f"\n[job {result.job.job_id}] status={result.job.status.value} duration_ms={result.job.duration_ms} "
+        f"llm_input_tokens={result.job.llm_input_tokens} llm_output_tokens={result.job.llm_output_tokens} "
+        f"llm_cost_rub={result.job.llm_cost_rub:.6f}",
+        file=sys.stderr,
+    )
     return 0 if result.job.status != JobStatus.FAILED else 1
 
 

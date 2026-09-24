@@ -135,11 +135,8 @@ def run_pipeline(
         with timed_step(logger, "retrieve_context", job_id=job.job_id, chunk=chunk_index):
             retrieved_context = retrieve(sanitized_chunk, repo_root)
 
-        existing_files = [
-            repo_root / fd.path for fd in sanitized_chunk if (repo_root / fd.path).exists()
-        ]
         with timed_step(logger, "run_tools", job_id=job.job_id, chunk=chunk_index):
-            tool_results = run_tools(enabled_tools, existing_files, repo_root, tools_timeout)
+            tool_results = run_tools(enabled_tools, sanitized_chunk, repo_root, tools_timeout)
 
         chunk_tool_findings: list[Finding] = []
         for tr in tool_results:
@@ -188,6 +185,14 @@ def run_pipeline(
     duration_ms = int((time.monotonic() - started_at) * 1000)
     final_status = JobStatus.COMPLETED_PARTIAL if partial_notes else JobStatus.COMPLETED
 
+    if llm_client is not None:
+        # getattr, not a hard attribute access: real LLMClient always
+        # provides these (see llm_client.py), but lightweight test doubles
+        # used as `llm_client` in unit tests may not implement them.
+        job.llm_input_tokens = getattr(llm_client, "total_input_tokens", 0)
+        job.llm_output_tokens = getattr(llm_client, "total_output_tokens", 0)
+        job.llm_cost_rub = getattr(llm_client, "total_cost_rub", 0.0)
+
     job.status = final_status
     job.agents_used = sorted(agents_used)
     job.tools_used = sorted(tools_used)
@@ -204,6 +209,9 @@ def run_pipeline(
         agents_used=job.agents_used,
         tools_used=job.tools_used,
         duration_ms=duration_ms,
+        llm_input_tokens=job.llm_input_tokens,
+        llm_output_tokens=job.llm_output_tokens,
+        llm_cost_rub=round(job.llm_cost_rub, 6),
     )
 
     return PipelineResult(job=job, findings=ranked_findings, report_markdown=report_markdown)
@@ -229,19 +237,53 @@ class JobManager:
         llm_client: Optional[LLMClient],
         publish_fn: Optional[Callable[[str], None]] = None,
     ) -> Job:
+        """For callers that already have the diff text in hand (e.g. the CLI
+        reading a local .diff file) — no I/O happens on this call."""
         job = self.job_store.create(pr_ref)
-        future = self._executor.submit(
-            run_pipeline,
-            pr_ref,
-            diff_text,
-            job,
-            self.job_store,
-            self.config,
-            repo_root,
-            llm_client,
-            publish_fn,
-            self.logger,
-        )
+        self._submit_job(job, lambda: diff_text, repo_root, llm_client, publish_fn)
+        return job
+
+    def submit_deferred(
+        self,
+        pr_ref: str,
+        fetch_diff: Callable[[], str],
+        repo_root: Path,
+        llm_client: Optional[LLMClient],
+        publish_fn: Optional[Callable[[str], None]] = None,
+    ) -> Job:
+        """For callers where fetching the diff is itself I/O (the GitHub API)
+        that must NOT block the ack — this is what the async gateway uses.
+        ``fetch_diff`` runs inside the background thread, after the job is
+        already created and this call has returned (docs/system-design.md
+        § 1: "ack сразу, не дожидаясь завершения анализа" — that includes
+        not waiting on PR ingestion, not just on the LLM)."""
+        job = self.job_store.create(pr_ref)
+        self._submit_job(job, fetch_diff, repo_root, llm_client, publish_fn)
+        return job
+
+    def _submit_job(
+        self,
+        job: Job,
+        fetch_diff: Callable[[], str],
+        repo_root: Path,
+        llm_client: Optional[LLMClient],
+        publish_fn: Optional[Callable[[str], None]],
+    ) -> None:
+        def _run() -> PipelineResult:
+            diff_text = fetch_diff()  # runs in the worker thread, not on the ack path
+            return run_pipeline(
+                job.pr_ref,
+                diff_text,
+                job,
+                self.job_store,
+                self.config,
+                repo_root,
+                llm_client,
+                publish_fn,
+                self.logger,
+            )
+
+        future = self._executor.submit(_run)
 
         def _on_error(fut: Future) -> None:
             exc = fut.exception()
@@ -251,7 +293,6 @@ class JobManager:
 
         future.add_done_callback(_on_error)
         self._futures[job.job_id] = future
-        return job
 
     def get_job(self, job_id: str) -> Optional[Job]:
         return self.job_store.get(job_id)

@@ -42,7 +42,19 @@ class JobResponse(BaseModel):
 
 @app.post("/analyze", response_model=JobResponse, status_code=202)
 def analyze(request: AnalyzeRequest) -> JobResponse:
-    pr = parse_pr_url(request.pr_url)
+    # Only synchronous work on the ack path: pure input validation (point of
+    # control #1, system-design.md § 9) — no network I/O. The actual GitHub
+    # fetch happens inside submit_deferred()'s background thread, so a slow
+    # or unreachable GitHub never delays the ack (system-design.md § 1: "ack
+    # сразу, не дожидаясь завершения анализа" — this includes PR ingestion,
+    # not just the LLM call). An earlier version of this handler fetched the
+    # diff here, synchronously, before creating the job — measured at ~1s of
+    # added ack latency against a real PR; see docs/demo-report.md.
+    try:
+        pr = parse_pr_url(request.pr_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     github_client = GitHubClient(
         token=config.github_token,
         api_base_url=config.get("github", "api_base_url", default="https://api.github.com"),
@@ -50,19 +62,17 @@ def analyze(request: AnalyzeRequest) -> JobResponse:
         max_retries=config.get("github", "max_retries", default=3),
         retry_backoff_seconds=tuple(config.get("github", "retry_backoff_seconds", default=[1, 2, 4])),
     )
-    try:
-        diff_text = github_client.get_pr_diff(pr)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     llm_client = (
         LLMClient(
-            model=config.get("llm", "model", default="gemini-3.6-flash"),
+            model=config.resolved_llm_model(default="openai/gpt-4o"),
             temperature=config.get("llm", "temperature", default=0.2),
             max_tokens=config.get("llm", "max_tokens", default=4096),
             request_timeout_seconds=config.get("llm", "request_timeout_seconds", default=30),
             max_retries=config.get("llm", "max_retries", default=1),
-            api_key=config.google_api_key,
+            requests_per_minute=config.get("llm", "requests_per_minute", default=5),
+            api_key=config.llm_auth_token,
+            base_url=config.llm_base_url,
         )
         if config.has_llm_credentials
         else None
@@ -70,9 +80,9 @@ def analyze(request: AnalyzeRequest) -> JobResponse:
 
     publish_fn = (lambda text: github_client.publish_comment(pr, text)) if request.publish else None
 
-    job = job_manager.submit(
+    job = job_manager.submit_deferred(
         pr_ref=pr.slug,
-        diff_text=diff_text,
+        fetch_diff=lambda: github_client.get_pr_diff(pr),
         repo_root=Path(request.repo_root).resolve(),
         llm_client=llm_client,
         publish_fn=publish_fn,
@@ -92,6 +102,9 @@ def get_job(job_id: str) -> dict:
         "agents_used": job.agents_used,
         "tools_used": job.tools_used,
         "duration_ms": job.duration_ms,
+        "llm_input_tokens": job.llm_input_tokens,
+        "llm_output_tokens": job.llm_output_tokens,
+        "llm_cost_rub": job.llm_cost_rub,
         "error": job.error,
         "report_markdown": job.report_markdown,
     }

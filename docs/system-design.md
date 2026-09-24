@@ -103,6 +103,6 @@ Retriever дополняет diff контекстом, которого нет 
 1. Валидация входного запроса (URL/доступ к PR) — до постановки job в очередь.
 2. Проверка размера diff и необходимости chunking — после Diff Parser.
 3. Guardrail Pre-Filter — обязательный шаг перед любым обращением к LLM.
-4. Circuit breaker / rate limiter — перед каждым внешним вызовом (GitHub API, LLM API).
+4. Rate limiter перед каждым LLM-вызовом (`LLMClient`, sliding-window, docs/diagrams/c4-component.md) и retry с backoff перед каждым GitHub API вызовом (`GitHubClient`) — не единый circuit breaker, а throttling/retry в каждом внешнем клиенте по отдельности (см. диаграмму для деталей и обоснования).
 5. Guardrail Output Check — обязательный шаг перед публикацией отчёта; единственная точка, определяющая, что увидит пользователь и репозиторий.
 6. Human-in-the-loop — система только публикует рекомендации, не изменяет код и не мерджит PR (governance.md, раздел 5).

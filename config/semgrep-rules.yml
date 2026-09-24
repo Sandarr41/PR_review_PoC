@@ -1,0 +1,45 @@
+# Bundled offline ruleset for the Tool Integration Layer's semgrep runner
+# (docs/specs/tools-api.md). Deliberately NOT using `--config auto` / the
+# Semgrep Registry: that requires `semgrep login` and a network round-trip
+# per PR, which conflicts with the latency/cost budget in
+# docs/product-proposal.md. A small bundled ruleset is offline, fast, and
+# reproducible in tests — the trade-off is narrower coverage than the full
+# registry, which is an explicit PoC scope decision, not an oversight.
+#
+# One rule per language rather than `languages: [python, javascript]` on a
+# shared rule — semgrep 1.177.0 silently matches nothing when a
+# pattern-either rule declares more than one language.
+rules:
+  - id: python-eval-detected
+    languages: [python]
+    severity: ERROR
+    message: "Use of eval()/exec() on non-literal input is a code-injection risk."
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+
+  - id: javascript-eval-detected
+    languages: [javascript]
+    severity: ERROR
+    message: "Use of eval() on non-literal input is a code-injection risk."
+    pattern: eval(...)
+
+  - id: python-hardcoded-secret
+    languages: [python]
+    severity: WARNING
+    message: "Possible hardcoded secret/password/API key."
+    patterns:
+      - pattern: $VAR = "..."
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)^(pass(word)?|secret|api[_-]?key|token)$
+
+  - id: javascript-hardcoded-secret
+    languages: [javascript]
+    severity: WARNING
+    message: "Possible hardcoded secret/password/API key."
+    patterns:
+      - pattern: $VAR = "..."
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)^(pass(word)?|secret|api[_-]?key|token)$
